@@ -1,0 +1,256 @@
+const FixerBookingService = require("../services/fixerBookingService.js");
+const { emitBookingUpdated } = require("../realtime/socketServer");
+const CustomerBookingModel = require("../models/customerBookingModel");
+
+class FixerBookingController {
+  static async getAllRequests(req, res) {
+    try {
+      const db = req.app.get("db");
+
+      const provider_id = req.user.id; 
+      // assuming provider is logged in and middleware added req.user
+
+      const requests = await FixerBookingService.getAllRequests(
+        db,
+        provider_id
+      );
+
+      res.status(200).json({
+        success: true,
+        data: requests,
+      });
+    } catch (error) {
+      console.error(error);
+
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch requests",
+      });
+    }
+  }
+
+  static async getRequestById(req, res) {
+    try {
+      const db = req.app.get("db");
+      const { id } = req.params;
+      const provider_id = req.user.id;
+
+      const requestDetail = await FixerBookingService.getRequestById(
+        db,
+        id,
+        provider_id
+      );
+
+      if (!requestDetail) {
+        return res.status(404).json({
+          success: false,
+          message: "Request not found",
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        data: requestDetail,
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch booking detail",
+      });
+    }
+  }
+
+  static async acceptAndSetProposal(req, res) {
+    try {
+      const db = req.app.get("db");
+      const io = req.app.get("io");
+      const { id } = req.params;
+      const { items, total } = req.body;
+      const provider_id = req.user.id;
+
+      await FixerBookingService.acceptAndSetProposal(
+        db,
+        id,
+        provider_id,
+        items,
+        total
+      );
+
+      // Notify customer that proposal is submitted
+      const booking = await CustomerBookingModel.getBookingDetailsById(db, Number(id));
+      if (booking) {
+        emitBookingUpdated(io, booking.customer_id, booking);
+      }
+
+      res.status(200).json({
+        success: true,
+        message: "Proposal submitted successfully",
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to submit proposal",
+      });
+    }
+  }
+
+  static async rejectBooking(req, res) {
+    try {
+      const db = req.app.get("db");
+      const io = req.app.get("io");
+      const { id } = req.params;
+      const { reason } = req.body;
+      const provider_id = req.user.id;
+
+      const result = await FixerBookingService.rejectBooking(
+        db,
+        id,
+        provider_id,
+        reason
+      );
+
+      // Notify customer that booking was rejected
+      const booking = await CustomerBookingModel.getBookingDetailsById(db, Number(id));
+      if (booking) {
+        emitBookingUpdated(io, booking.customer_id, booking);
+      }
+
+      res.status(200).json({
+        success: true,
+        message: result.message,
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to reject booking",
+      });
+    }
+  }
+
+  static async markArrived(req, res) {
+    try {
+      const db = req.app.get("db");
+      const io = req.app.get("io");
+      const { id } = req.params;
+      const provider_id = req.user.id;
+
+      const result = await FixerBookingService.markArrived(
+        db,
+        id,
+        provider_id
+      );
+
+      const booking = await CustomerBookingModel.getBookingDetailsById(db, Number(id));
+      if (booking) {
+        emitBookingUpdated(io, booking.customer_id, booking);
+      }
+
+      res.status(200).json({
+        success: true,
+        message: result.message,
+        booking,
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(error.status || 500).json({
+        success: false,
+        message: error.message || "Failed to mark booking as arrived",
+      });
+    }
+  }
+
+  static async completeBooking(req, res) {
+    try {
+      const db = req.app.get("db");
+      const io = req.app.get("io");
+      const { id } = req.params;
+      const { items, total } = req.body;
+      const provider_id = req.user.id;
+
+      const result = await FixerBookingService.completeBooking(
+        db,
+        id,
+        provider_id,
+        items,
+        total
+      );
+
+      const booking = await CustomerBookingModel.getBookingDetailsById(db, Number(id));
+      if (booking) {
+        emitBookingUpdated(io, booking.customer_id, booking);
+      }
+
+      res.status(200).json({
+        success: true,
+        message: "Booking completed and receipt saved successfully",
+        data: {
+          booking_id: result.booking_id,
+          customer_id: result.customer_id,
+        },
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(error.status || 500).json({
+        success: false,
+        message: error.message || "Failed to complete booking",
+      });
+    }
+  }
+
+  static async markPaymentPaid(req, res) {
+    try {
+      const db = req.app.get("db");
+      const { id } = req.params;
+      const provider_id = req.user.id;
+
+      const payment = await FixerBookingService.markPaymentPaid(
+        db,
+        id,
+        provider_id
+      );
+
+      res.status(200).json({
+        success: true,
+        message: "Payment marked as paid successfully",
+        data: payment,
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(error.status || 500).json({
+        success: false,
+        message: error.message || "Failed to mark payment as paid",
+      });
+    }
+  }
+
+  static async markPaymentCompleted(req, res) {
+    try {
+      const db = req.app.get("db");
+      const { id } = req.params;
+      const provider_id = req.user.id;
+
+      const payment = await FixerBookingService.markPaymentCompleted(
+        db,
+        id,
+        provider_id
+      );
+
+      res.status(200).json({
+        success: true,
+        message: "Payment marked as completed successfully",
+        data: payment,
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(error.status || 500).json({
+        success: false,
+        message: error.message || "Failed to mark payment as completed",
+      });
+    }
+  }
+}
+
+module.exports = FixerBookingController;

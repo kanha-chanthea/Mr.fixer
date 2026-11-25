@@ -1,0 +1,99 @@
+const express = require("express");
+const router = express.Router();
+
+const protect = require("../middleware/authMiddleware");
+const upload = require("../middleware/upload");
+
+const {
+  getUsers,
+  getCurrentUser,
+  getCustomerProfile,
+  getCustomerLocation,
+  updateCustomerProfile,
+  updateCustomerLocation,
+} = require("../controllers/userController");
+const ServiceCategoryController = require("../controllers/serviceCategoryController");
+const CustomerBookingController = require("../controllers/customerBookingController");
+
+router.get("/", protect, getUsers);
+router.get("/currentUser", protect, getCurrentUser);
+router.get("/profile", protect, getCustomerProfile);
+router.get("/location", protect, getCustomerLocation);
+router.put("/profile", protect, upload.single("profile_img"), updateCustomerProfile);
+router.put("/location", protect, updateCustomerLocation);
+
+router.get("/allCategories", ServiceCategoryController.getAvailableCategories);
+router.get("/providersEachCategory/:categoryId", ServiceCategoryController.getProvidersByCategory);
+router.get(
+  "/providersEachCategory/:categoryId/all",
+  ServiceCategoryController.getAllProvidersByCategory
+);
+router.get(
+  "/providers/:providerId/profile",
+  protect,
+  (req, res) => CustomerBookingController.getProviderProfile(req, res)
+);
+router.get(
+  "/bookings/history",
+  protect,
+  (req, res) => CustomerBookingController.getCompletedHistory(req, res)
+);
+router.get(
+  "/bookings/:id/fixer-profile",
+  protect,
+  (req, res) => CustomerBookingController.getFixerProfile(req, res)
+);
+router.get(
+  "/bookings/:id/receipt",
+  protect,
+  (req, res) => CustomerBookingController.getReceiptDetails(req, res)
+);
+router.post(
+  "/bookings/:id/payments",
+  protect,
+  (req, res) => CustomerBookingController.createPendingPayment(req, res)
+);
+router.get(
+  "/bookings/:id/payments/latest",
+  protect,
+  (req, res) => CustomerBookingController.getLatestPayment(req, res)
+);
+router.post(
+  "/bookings/:id/payments/complete",
+  protect,
+  (req, res) => CustomerBookingController.completeLatestPayment(req, res)
+);
+
+router.post(
+  "/bookings",
+  protect,
+  upload.array("images", 3),
+  (req, res) => CustomerBookingController.createBooking(req, res)
+);
+router.get(
+  "/bookings/latest-active",
+  protect,
+  (req, res) => CustomerBookingController.getLatestActiveBooking(req, res)
+);
+router.put(
+  "/bookings/:id/location",
+  protect,
+  (req, res) => CustomerBookingController.updateBookingLocation(req, res)
+);
+router.post(
+  "/bookings/:id/confirm",
+  protect,
+  (req, res) => CustomerBookingController.confirmBooking(req, res)
+);
+router.post(
+  "/bookings/:id/reject",
+  protect,
+  (req, res) => CustomerBookingController.rejectBooking(req, res)
+);
+router.post(
+  "/bookings/:id/review",
+  protect,
+  (req, res) => CustomerBookingController.submitReview(req, res)
+);
+
+module.exports = router;
